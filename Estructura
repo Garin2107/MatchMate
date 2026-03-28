@@ -1,0 +1,5 @@
+matchmate/
+├── app.py           # App Streamlit (UI)
+├── api.py           # Módulo de conexión a API-Football
+├── requirements.txt
+└── .env        # Tu API key (no subir a GitHub)
