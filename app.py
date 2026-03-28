@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from api import get_live_fixtures, get_fixtures_by_date, get_fixture_events, get_fixture_stats, get_lineups
-
+from supabase import create_client
 import time
-
 
 
 # ── Función de limpieza global ────────────────────────────────────────────────
@@ -17,12 +16,25 @@ def clean(val):
     except:
         return "-"
 
+
 st.set_page_config(page_title="⚽ MatchMate", page_icon="⚽", layout="wide")
 st.title("⚽ MatchMate — Segunda Pantalla")
 st.caption("Datos en tiempo real mientras ves el partido en TV")
 
+
+# ── Conexión Supabase (st.secrets, compatible con Streamlit Cloud) ────────────
+@st.cache_resource
+def init_supabase():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
+
 st.sidebar.header("🔍 Buscar partido")
 mode = st.sidebar.radio("Modo", ["🔴 En vivo ahora", "📅 Por fecha"])
+
 
 LIGAS_CHILE = {
     "Primera División Chile": 265,
@@ -32,6 +44,7 @@ LIGAS_CHILE = {
 selected_liga = st.sidebar.selectbox("Liga", list(LIGAS_CHILE.keys()))
 league_id = LIGAS_CHILE[selected_liga]
 
+
 if mode == "🔴 En vivo ahora":
     fixtures = get_live_fixtures()
     st.sidebar.success(f"{len(fixtures)} partido(s) en vivo")
@@ -39,12 +52,15 @@ else:
     selected_date = st.sidebar.date_input("Fecha", value=date.today())
     fixtures = get_fixtures_by_date(str(selected_date), league_id)
 
+
 if league_id and mode == "🔴 En vivo ahora":
     fixtures = [f for f in fixtures if f["league"]["id"] == league_id]
+
 
 if not fixtures:
     st.warning("No hay partidos disponibles.")
     st.stop()
+
 
 partido_labels = []
 for f in fixtures:
@@ -56,9 +72,11 @@ for f in fixtures:
     min_str = f" ({minuto}')" if minuto else ""
     partido_labels.append(f"{home} {score_h} - {score_a} {away}{min_str}")
 
+
 selected_idx = st.sidebar.selectbox("Partido", range(len(partido_labels)), format_func=lambda i: partido_labels[i])
 fixture = fixtures[selected_idx]
 fixture_id = fixture["fixture"]["id"]
+
 
 home = fixture["teams"]["home"]["name"]
 away = fixture["teams"]["away"]["name"]
@@ -66,6 +84,7 @@ score_h = fixture["goals"]["home"] if fixture["goals"]["home"] is not None else 
 score_a = fixture["goals"]["away"] if fixture["goals"]["away"] is not None else 0
 status = fixture["fixture"]["status"]["long"]
 minuto = fixture["fixture"]["status"]["elapsed"]
+
 
 col1, col2, col3 = st.columns([3, 1, 3])
 with col1:
@@ -78,9 +97,12 @@ with col2:
 with col3:
     st.markdown(f"### ✈️ {away}")
 
+
 st.divider()
 
+
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Eventos", "📊 Estadísticas", "👥 Alineaciones", "🎯 Predictor"])
+
 
 # ── Tab 1: Eventos ────────────────────────────────────────────────────────────
 with tab1:
@@ -97,6 +119,7 @@ with tab1:
     else:
         st.info("Sin eventos registrados aún.")
 
+
 # ── Tab 2: Estadísticas ───────────────────────────────────────────────────────
 with tab2:
     stats = get_fixture_stats(fixture_id)
@@ -112,6 +135,7 @@ with tab2:
         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
     else:
         st.info("Estadísticas no disponibles aún.")
+
 
 # ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
 with tab3:
@@ -132,15 +156,9 @@ with tab3:
     else:
         st.info("Alineaciones no disponibles.")
 
-# Tab 4: Predictor multijugador
+
+# ── Tab 4: Predictor multijugador ─────────────────────────────────────────────
 with tab4:
-    from supabase import create_client
-    import os
-
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
     st.subheader("🎯 Predictor multijugador")
 
     usuario = st.text_input("Tu nombre o apodo", placeholder="Ej: Antonio")
@@ -164,7 +182,6 @@ with tab4:
     elif submitted and not usuario:
         st.warning("Ingresa tu nombre antes de enviar.")
 
-    # Mostrar predicciones de todos los usuarios para este partido
     st.subheader("📊 Predicciones del grupo")
     response = supabase.table("predicciones").select("*").eq("fixture_id", fixture_id).execute()
     if response.data:
@@ -173,12 +190,14 @@ with tab4:
         st.dataframe(df_pred.astype(str), use_container_width=True, hide_index=True)
     else:
         st.info("Nadie ha predicho aún. ¡Sé el primero!")
-        
+
+
 # Auto-refresh cada 30 segundos solo si hay partido en vivo
 if mode == "🔴 En vivo ahora":
     st.sidebar.caption("🔄 Actualizando cada 30 segundos...")
     time.sleep(30)
     st.rerun()
+
 
 # Detectar goles nuevos y alertar
 if "ultimo_marcador" not in st.session_state:
