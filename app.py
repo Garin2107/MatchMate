@@ -1,14 +1,18 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-from api import get_live_fixtures, get_fixtures_by_date, get_fixture_events, get_fixture_stats, get_lineups
+from api import (
+    get_live_fixtures, get_fixtures_by_date,
+    get_fixture_events, get_fixture_stats, get_lineups,
+    get_live_basketball, get_basketball_by_date,
+    get_live_baseball, get_baseball_by_date,
+    get_live_americanfootball, get_americanfootball_by_date,
+)
 from supabase import create_client
 import time
 
 
-# ── Función de limpieza global ────────────────────────────────────────────────
 def clean(val):
-    """Convierte cualquier valor a string seguro para pandas."""
     if val is None:
         return "-"
     try:
@@ -17,12 +21,11 @@ def clean(val):
         return "-"
 
 
-st.set_page_config(page_title="⚽ MatchMate", page_icon="⚽", layout="wide")
-st.title("⚽ MatchMate — Segunda Pantalla")
+st.set_page_config(page_title="🏆 MatchMate", page_icon="🏆", layout="wide")
+st.title("🏆 MatchMate — Segunda Pantalla")
 st.caption("Datos en tiempo real mientras ves el partido en TV")
 
 
-# ── Conexión Supabase (st.secrets, compatible con Streamlit Cloud) ────────────
 @st.cache_resource
 def init_supabase():
     url = st.secrets["SUPABASE_URL"]
@@ -32,36 +35,93 @@ def init_supabase():
 supabase = init_supabase()
 
 
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.header("🔍 Buscar partido")
+
+DEPORTES = {
+    "⚽ Fútbol":            "football",
+    "🏀 Basketball":        "basketball",
+    "⚾ Béisbol":           "baseball",
+    "🏈 Fútbol Americano":  "americanfootball",
+}
+selected_deporte_label = st.sidebar.selectbox("Deporte", list(DEPORTES.keys()))
+deporte = DEPORTES[selected_deporte_label]
+
 mode = st.sidebar.radio("Modo", ["🔴 En vivo ahora", "📅 Por fecha"])
 
-
-LIGAS_CHILE = {
-    "Primera División Chile": 265,
-    "Segunda División Chile": 266,
-    "Todas las ligas": None
+# Ligas por deporte
+LIGAS = {
+    "football": {
+        "Primera División Chile": 265,
+        "Segunda División Chile": 266,
+        "Liga MX": 262,
+        "Premier League": 39,
+        "La Liga": 140,
+        "Serie A": 135,
+        "Bundesliga": 78,
+        "Ligue 1": 61,
+        "Champions League": 2,
+        "Todas las ligas": None,
+    },
+    "basketball": {
+        "NBA": 12,
+        "Euroleague": 120,
+        "Todas las ligas": None,
+    },
+    "baseball": {
+        "MLB": 1,
+        "Todas las ligas": None,
+    },
+    "americanfootball": {
+        "NFL": 1,
+        "NCAA": 2,
+        "Todas las ligas": None,
+    },
 }
-selected_liga = st.sidebar.selectbox("Liga", list(LIGAS_CHILE.keys()))
-league_id = LIGAS_CHILE[selected_liga]
+
+ligas_deporte = LIGAS.get(deporte, {"Todas las ligas": None})
+selected_liga = st.sidebar.selectbox("Liga", list(ligas_deporte.keys()))
+league_id = ligas_deporte[selected_liga]
+
+
+# ── Obtener fixtures según deporte ───────────────────────────────────────────
+def get_fixtures(deporte, mode, selected_date=None, league_id=None):
+    if deporte == "football":
+        if mode == "🔴 En vivo ahora":
+            return get_live_fixtures()
+        return get_fixtures_by_date(str(selected_date), league_id)
+    elif deporte == "basketball":
+        if mode == "🔴 En vivo ahora":
+            return get_live_basketball()
+        return get_basketball_by_date(str(selected_date), league_id)
+    elif deporte == "baseball":
+        if mode == "🔴 En vivo ahora":
+            return get_live_baseball()
+        return get_baseball_by_date(str(selected_date), league_id)
+    elif deporte == "americanfootball":
+        if mode == "🔴 En vivo ahora":
+            return get_live_americanfootball()
+        return get_americanfootball_by_date(str(selected_date), league_id)
+    return []
 
 
 if mode == "🔴 En vivo ahora":
-    fixtures = get_live_fixtures()
+    fixtures = get_fixtures(deporte, mode)
     st.sidebar.success(f"{len(fixtures)} partido(s) en vivo")
 else:
     selected_date = st.sidebar.date_input("Fecha", value=date.today())
-    fixtures = get_fixtures_by_date(str(selected_date), league_id)
+    fixtures = get_fixtures(deporte, mode, selected_date, league_id)
 
-
+# Filtrar por liga en modo en vivo
 if league_id and mode == "🔴 En vivo ahora":
-    fixtures = [f for f in fixtures if f["league"]["id"] == league_id]
-
+    fixtures = [f for f in fixtures if f.get("league", {}).get("id") == league_id]
 
 if not fixtures:
     st.warning("No hay partidos disponibles.")
     st.stop()
 
 
+# ── Labels de partidos ────────────────────────────────────────────────────────
 partido_labels = []
 for f in fixtures:
     home = f["teams"]["home"]["name"]
@@ -72,20 +132,22 @@ for f in fixtures:
     min_str = f" ({minuto}')" if minuto else ""
     partido_labels.append(f"{home} {score_h} - {score_a} {away}{min_str}")
 
-
-selected_idx = st.sidebar.selectbox("Partido", range(len(partido_labels)), format_func=lambda i: partido_labels[i])
+selected_idx = st.sidebar.selectbox(
+    "Partido", range(len(partido_labels)),
+    format_func=lambda i: partido_labels[i]
+)
 fixture = fixtures[selected_idx]
 fixture_id = fixture["fixture"]["id"]
 
-
-home = fixture["teams"]["home"]["name"]
-away = fixture["teams"]["away"]["name"]
+home   = fixture["teams"]["home"]["name"]
+away   = fixture["teams"]["away"]["name"]
 score_h = fixture["goals"]["home"] if fixture["goals"]["home"] is not None else 0
 score_a = fixture["goals"]["away"] if fixture["goals"]["away"] is not None else 0
-status = fixture["fixture"]["status"]["long"]
-minuto = fixture["fixture"]["status"]["elapsed"]
+status  = fixture["fixture"]["status"]["long"]
+minuto  = fixture["fixture"]["status"]["elapsed"]
 
 
+# ── Header del partido ────────────────────────────────────────────────────────
 col1, col2, col3 = st.columns([3, 1, 3])
 with col1:
     st.markdown(f"### 🏠 {home}")
@@ -97,9 +159,7 @@ with col2:
 with col3:
     st.markdown(f"### ✈️ {away}")
 
-
 st.divider()
-
 
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Eventos", "📊 Estadísticas", "👥 Alineaciones", "🎯 Predictor"])
 
@@ -139,22 +199,25 @@ with tab2:
 
 # ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
 with tab3:
-    lineups = get_lineups(fixture_id)
-    if lineups:
-        col_h, col_a = st.columns(2)
-        for i, team_lineup in enumerate(lineups[:2]):
-            col = col_h if i == 0 else col_a
-            with col:
-                st.subheader(team_lineup["team"]["name"])
-                st.caption(f"Formación: {team_lineup['formation']}")
-                data = {
-                    "#":       [clean(p["player"]["number"]) for p in team_lineup["startXI"]],
-                    "Jugador": [clean(p["player"]["name"]) for p in team_lineup["startXI"]],
-                    "Pos":     [clean(p["player"]["pos"]) for p in team_lineup["startXI"]],
-                }
-                st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+    if deporte == "football":
+        lineups = get_lineups(fixture_id)
+        if lineups:
+            col_h, col_a = st.columns(2)
+            for i, team_lineup in enumerate(lineups[:2]):
+                col = col_h if i == 0 else col_a
+                with col:
+                    st.subheader(team_lineup["team"]["name"])
+                    st.caption(f"Formación: {team_lineup['formation']}")
+                    data = {
+                        "#":       [clean(p["player"]["number"]) for p in team_lineup["startXI"]],
+                        "Jugador": [clean(p["player"]["name"]) for p in team_lineup["startXI"]],
+                        "Pos":     [clean(p["player"]["pos"]) for p in team_lineup["startXI"]],
+                    }
+                    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Alineaciones no disponibles.")
     else:
-        st.info("Alineaciones no disponibles.")
+        st.info(f"Alineaciones no disponibles para {selected_deporte_label}.")
 
 
 # ── Tab 4: Predictor multijugador ─────────────────────────────────────────────
@@ -164,18 +227,19 @@ with tab4:
     usuario = st.text_input("Tu nombre o apodo", placeholder="Ej: Antonio")
 
     with st.form("prediccion"):
-        pred_gol = st.radio("Próximo en marcar:", [home, away, "Nadie"])
+        pred_gol = st.radio("Próximo en anotar:", [home, away, "Nadie"])
         pred_resultado = st.selectbox("Resultado final:", [f"Gana {home}", f"Gana {away}", "Empate"])
-        pred_goles = st.slider("Total de goles:", 0, 10, 2)
+        pred_goles = st.slider("Total de puntos/goles:", 0, 150 if deporte == "basketball" else 30, 2)
         submitted = st.form_submit_button("✅ Enviar predicción")
 
     if submitted and usuario:
         supabase.table("predicciones").insert({
-            "usuario": usuario,
+            "usuario":    usuario,
             "fixture_id": fixture_id,
-            "resultado": pred_resultado,
+            "deporte":    deporte,
+            "resultado":  pred_resultado,
             "proximo_gol": pred_gol,
-            "total_goles": pred_goles
+            "total_goles": pred_goles,
         }).execute()
         st.success(f"¡Predicción guardada, {usuario}!")
         st.balloons()
@@ -186,24 +250,24 @@ with tab4:
     response = supabase.table("predicciones").select("*").eq("fixture_id", fixture_id).execute()
     if response.data:
         df_pred = pd.DataFrame(response.data)[["usuario", "resultado", "proximo_gol", "total_goles"]]
-        df_pred.columns = ["Usuario", "Resultado", "Próx. gol", "Total goles"]
+        df_pred.columns = ["Usuario", "Resultado", "Próx. anotador", "Total puntos/goles"]
         st.dataframe(df_pred.astype(str), use_container_width=True, hide_index=True)
     else:
         st.info("Nadie ha predicho aún. ¡Sé el primero!")
 
 
-# Auto-refresh cada 30 segundos solo si hay partido en vivo
+# ── Auto-refresh en vivo ──────────────────────────────────────────────────────
 if mode == "🔴 En vivo ahora":
     st.sidebar.caption("🔄 Actualizando cada 30 segundos...")
     time.sleep(30)
     st.rerun()
 
-
-# Detectar goles nuevos y alertar
+# ── Alerta de gol/punto nuevo ────────────────────────────────────────────────
 if "ultimo_marcador" not in st.session_state:
     st.session_state.ultimo_marcador = (score_h, score_a)
 
 marcador_actual = (score_h, score_a)
 if marcador_actual != st.session_state.ultimo_marcador:
-    st.toast(f"⚽ ¡GOL! Nuevo marcador: {home} {score_h} - {score_a} {away}", icon="⚽")
+    emoji = {"football": "⚽", "basketball": "🏀", "baseball": "⚾", "americanfootball": "🏈"}.get(deporte, "🏆")
+    st.toast(f"{emoji} ¡PUNTO/GOL! {home} {score_h} - {score_a} {away}", icon=emoji)
     st.session_state.ultimo_marcador = marcador_actual
