@@ -47,7 +47,7 @@ def get_lineups(fixture_id: int):
 
 import requests
 
-API_KEY = st.secrets["API_FOOTBALL_KEY"]  # o como tengas configurado tu key
+API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
 BASE_HEADERS = {"x-rapidapi-key": API_KEY, "x-rapidapi-host": "v1.basketball.api-sports.io"}
 
 
