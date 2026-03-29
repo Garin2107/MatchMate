@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("API_FOOTBALL_KEY")
+API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
 BASE_URL = "https://v3.football.api-sports.io"
 
-HEADERS = {
-    "x-apisports-key": API_KEY
+BASE_HEADERS = {
+    "x-rapidapi-key": API_KEY,
+    "x-rapidapi-host": "v1.basketball.api-sports.io"
 }
 
 def get_live_fixtures():
