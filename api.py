@@ -203,3 +203,16 @@ def _normalize_americanfootball(games):
             },
         })
     return normalized
+
+def get_baseball_lineups(fixture_id):
+    """Obtiene lineup de béisbol (batters + pitcher)"""
+    try:
+        r = requests.get(
+            "https://v1.baseball.api-sports.io/games/lineups",
+            headers={**HEADERS, "x-rapidapi-host": "v1.baseball.api-sports.io"},
+            params={"game": fixture_id},
+            timeout=10
+        )
+        return r.json().get("response", [])
+    except:
+        return []

@@ -7,6 +7,7 @@ from api import (
     get_live_basketball, get_basketball_by_date,
     get_live_baseball, get_baseball_by_date,
     get_live_americanfootball, get_americanfootball_by_date,
+    get_baseball_lineups,   # ← agregar esto
 )
 from supabase import create_client
 import time
@@ -198,6 +199,7 @@ with tab2:
 
 
 # ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
+# ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
 with tab3:
     if deporte == "football":
         lineups = get_lineups(fixture_id)
@@ -216,9 +218,36 @@ with tab3:
                     st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
         else:
             st.info("Alineaciones no disponibles.")
+
+    elif deporte == "baseball":
+        lineups = get_baseball_lineups(fixture_id)
+        if lineups:
+            col_h, col_a = st.columns(2)
+            for i, team_data in enumerate(lineups[:2]):
+                col = col_h if i == 0 else col_a
+                with col:
+                    st.subheader(team_data.get("team", {}).get("name", ""))
+                    # Pitchers
+                    pitchers = team_data.get("pitchers", [])
+                    if pitchers:
+                        st.caption("⚾ Pitcher")
+                        data_p = {"Jugador": [clean(p.get("name")) for p in pitchers]}
+                        st.dataframe(pd.DataFrame(data_p), use_container_width=True, hide_index=True)
+                    # Batters
+                    batters = team_data.get("batters", [])
+                    if batters:
+                        st.caption("🏏 Batters")
+                        data_b = {
+                            "#":       [clean(b.get("order")) for b in batters],
+                            "Jugador": [clean(b.get("name")) for b in batters],
+                            "Pos":     [clean(b.get("pos")) for b in batters],
+                        }
+                        st.dataframe(pd.DataFrame(data_b), use_container_width=True, hide_index=True)
+        else:
+            st.info("Alineaciones no disponibles para este partido.")
+
     else:
         st.info(f"Alineaciones no disponibles para {selected_deporte_label}.")
-
 
 # ── Tab 4: Predictor multijugador ─────────────────────────────────────────────
 with tab4:
