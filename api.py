@@ -12,6 +12,9 @@ BASE_HEADERS = {
     "x-rapidapi-host": "v1.basketball.api-sports.io"
 }
 
+# Alias para compatibilidad con funciones existentes
+HEADERS = BASE_HEADERS
+
 def get_live_fixtures():
     """Retorna todos los partidos en vivo en este momento."""
     res = requests.get(f"{BASE_URL}/fixtures?live=all", headers=HEADERS)
