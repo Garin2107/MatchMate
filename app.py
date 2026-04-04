@@ -9,7 +9,6 @@ from api import (
     get_americanfootball_by_date,
     get_baseball_lineups,
 )
-
 from supabase import create_client
 
 
@@ -39,6 +38,7 @@ supabase = init_supabase()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.header("🔍 Buscar partido")
+st.sidebar.info("ℹ️ Modo en vivo requiere plan Pro de API-Sports.")
 
 DEPORTES = {
     "⚽ Fútbol":            "football",
@@ -49,7 +49,6 @@ DEPORTES = {
 selected_deporte_label = st.sidebar.selectbox("Deporte", list(DEPORTES.keys()))
 deporte = DEPORTES[selected_deporte_label]
 
-st.sidebar.info("ℹ️ Modo en vivo requiere plan Pro de API-Sports.")
 selected_date = st.sidebar.date_input("Fecha", value=date.today())
 
 LIGAS = {
@@ -82,8 +81,8 @@ LIGAS = {
 }
 
 ligas_deporte = LIGAS.get(deporte, {"Todas las ligas": None})
-selected_liga = st.sidebar.selectbox("Liga", list(ligas_deporte.keys()))
-league_id = ligas_deporte[selected_liga]
+selected_liga  = st.sidebar.selectbox("Liga", list(ligas_deporte.keys()))
+league_id      = ligas_deporte[selected_liga]
 
 
 # ── Obtener fixtures ──────────────────────────────────────────────────────────
@@ -98,7 +97,16 @@ def get_fixtures(deporte, selected_date, league_id=None):
         return get_americanfootball_by_date(str(selected_date), league_id)
     return []
 
+
 fixtures = get_fixtures(deporte, selected_date, league_id)
+
+# ── Validar ANTES de construir el selectbox de partidos ──────────────────────
+if not fixtures:
+    st.warning("No hay partidos disponibles para esta fecha y liga.")
+    st.stop()
+
+st.sidebar.success(f"{len(fixtures)} partido(s) encontrados")
+
 
 # ── Labels de partidos ────────────────────────────────────────────────────────
 partido_labels = []
@@ -116,17 +124,7 @@ selected_idx = st.sidebar.selectbox(
     format_func=lambda i: partido_labels[i]
 )
 
-if selected_idx is None or selected_idx >= len(fixtures):
-    st.warning("Selecciona un partido válido.")
-    st.stop()
-
-if not fixtures:
-    st.warning("No hay partidos disponibles para esta fecha y liga.")
-    st.sidebar.empty()   # ← limpia el sidebar
-    st.stop()
-
 fixture    = fixtures[selected_idx]
-
 fixture_id = fixture["fixture"]["id"]
 
 home    = fixture["teams"]["home"]["name"]
@@ -190,7 +188,6 @@ with tab2:
 # ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
 with tab3:
 
-    # ── Fútbol ──────────────────────────────────────────────────────────────
     if deporte == "football":
         lineups = get_lineups(fixture_id)
         if lineups:
@@ -201,7 +198,6 @@ with tab3:
                     st.subheader(team_lineup["team"]["name"])
                     st.caption(f"⚙️ Formación: {team_lineup.get('formation', '-')}")
 
-                    # Once titular
                     start_xi = team_lineup.get("startXI", [])
                     if start_xi:
                         st.markdown("**🟢 Once titular**")
@@ -212,7 +208,6 @@ with tab3:
                         }
                         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
 
-                    # Suplentes en expander
                     substitutes = team_lineup.get("substitutes", [])
                     if substitutes:
                         with st.expander("🔄 Suplentes"):
@@ -223,14 +218,12 @@ with tab3:
                             }
                             st.dataframe(pd.DataFrame(data_s), use_container_width=True, hide_index=True)
 
-                    # DT
                     coach = team_lineup.get("coach", {})
                     if coach.get("name"):
                         st.caption(f"🧑‍💼 DT: {coach['name']}")
         else:
             st.info("Alineaciones no disponibles para este partido.")
 
-    # ── Béisbol ──────────────────────────────────────────────────────────────
     elif deporte == "baseball":
         lineups = get_baseball_lineups(fixture_id)
         if lineups:
@@ -241,20 +234,17 @@ with tab3:
                     team_name = team_data.get("team", {}).get("name", f"Equipo {i+1}")
                     st.subheader(team_name)
 
-                    # Pitcher abridor
                     pitchers = team_data.get("pitchers", [])
                     if pitchers:
                         starter = pitchers[0]
                         st.markdown("**⚾ Pitcher abridor**")
                         st.markdown(f"- {clean(starter.get('name'))}  #{clean(starter.get('number'))}")
 
-                    # Bullpen en expander
                     if len(pitchers) > 1:
                         with st.expander("🔁 Bullpen"):
                             for p in pitchers[1:]:
                                 st.markdown(f"- {clean(p.get('name'))}  #{clean(p.get('number'))}")
 
-                    # Orden al bate
                     batters = team_data.get("batters", [])
                     if batters:
                         st.markdown("**🏏 Orden al bate**")
@@ -271,7 +261,6 @@ with tab3:
         else:
             st.info("Alineaciones no disponibles para este partido de béisbol.")
 
-    # ── Otros deportes ────────────────────────────────────────────────────────
     else:
         st.info(f"Alineaciones no disponibles para {selected_deporte_label}.")
 
@@ -310,7 +299,6 @@ with tab4:
         st.dataframe(df_pred.astype(str), use_container_width=True, hide_index=True)
     else:
         st.info("Nadie ha predicho aún. ¡Sé el primero!")
-
 
 
 # ── Alerta de gol/punto nuevo ─────────────────────────────────────────────────
