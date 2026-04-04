@@ -2,15 +2,15 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from api import (
-    get_live_fixtures, get_fixtures_by_date,
+    get_fixtures_by_date,
     get_fixture_events, get_fixture_stats, get_lineups,
-    get_live_basketball, get_basketball_by_date,
-    get_live_baseball, get_baseball_by_date,
-    get_live_americanfootball, get_americanfootball_by_date,
+    get_basketball_by_date,
+    get_baseball_by_date,
+    get_americanfootball_by_date,
     get_baseball_lineups,
 )
+
 from supabase import create_client
-import time
 
 
 def clean(val):
@@ -49,7 +49,8 @@ DEPORTES = {
 selected_deporte_label = st.sidebar.selectbox("Deporte", list(DEPORTES.keys()))
 deporte = DEPORTES[selected_deporte_label]
 
-mode = st.sidebar.radio("Modo", ["🔴 En vivo ahora", "📅 Por fecha"])
+st.sidebar.info("ℹ️ Modo en vivo requiere plan Pro de API-Sports.")
+selected_date = st.sidebar.date_input("Fecha", value=date.today())
 
 LIGAS = {
     "football": {
@@ -86,40 +87,18 @@ league_id = ligas_deporte[selected_liga]
 
 
 # ── Obtener fixtures ──────────────────────────────────────────────────────────
-def get_fixtures(deporte, mode, selected_date=None, league_id=None):
+def get_fixtures(deporte, selected_date, league_id=None):
     if deporte == "football":
-        if mode == "🔴 En vivo ahora":
-            return get_live_fixtures()
         return get_fixtures_by_date(str(selected_date), league_id)
     elif deporte == "basketball":
-        if mode == "🔴 En vivo ahora":
-            return get_live_basketball()
         return get_basketball_by_date(str(selected_date), league_id)
     elif deporte == "baseball":
-        if mode == "🔴 En vivo ahora":
-            return get_live_baseball()
         return get_baseball_by_date(str(selected_date), league_id)
     elif deporte == "americanfootball":
-        if mode == "🔴 En vivo ahora":
-            return get_live_americanfootball()
         return get_americanfootball_by_date(str(selected_date), league_id)
     return []
 
-
-if mode == "🔴 En vivo ahora":
-    fixtures = get_fixtures(deporte, mode)
-    st.sidebar.success(f"{len(fixtures)} partido(s) en vivo")
-else:
-    selected_date = st.sidebar.date_input("Fecha", value=date.today())
-    fixtures = get_fixtures(deporte, mode, selected_date, league_id)
-
-if league_id and mode == "🔴 En vivo ahora":
-    fixtures = [f for f in fixtures if f.get("league", {}).get("id") == league_id]
-
-if not fixtures:
-    st.warning("No hay partidos disponibles.")
-    st.stop()
-
+fixtures = get_fixtures(deporte, selected_date, league_id)
 
 # ── Labels de partidos ────────────────────────────────────────────────────────
 partido_labels = []
@@ -321,12 +300,6 @@ with tab4:
     else:
         st.info("Nadie ha predicho aún. ¡Sé el primero!")
 
-
-# ── Auto-refresh en vivo ──────────────────────────────────────────────────────
-if mode == "🔴 En vivo ahora":
-    st.sidebar.caption("🔄 Actualizando cada 30 segundos...")
-    time.sleep(30)
-    st.rerun()
 
 
 # ── Alerta de gol/punto nuevo ─────────────────────────────────────────────────
