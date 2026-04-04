@@ -5,27 +5,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
-BASE_URL = "https://v3.football.api-sports.io"
 
-BASE_HEADERS = {
+# ── Football ──────────────────────────────────────────────────────────────────
+HEADERS = {
     "x-rapidapi-key": API_KEY,
-    "x-rapidapi-host": "v1.basketball.api-sports.io"
+    "x-rapidapi-host": "v3.football.api-sports.io"   # ← bug original corregido
 }
+BASE_URL = "https://v3.football.api-sports.io"
+BASE_HEADERS = {"x-rapidapi-key": API_KEY}
 
-# Alias para compatibilidad con funciones existentes
-HEADERS = BASE_HEADERS
 
 def get_live_fixtures():
-    """Retorna todos los partidos en vivo en este momento."""
     res = requests.get(f"{BASE_URL}/fixtures?live=all", headers=HEADERS)
     return res.json().get("response", [])
 
+
 def get_fixtures_by_date(date: str, league_id: int = None):
-    """
-    Retorna partidos de una fecha específica.
-    date: formato 'YYYY-MM-DD'
-    league_id: opcional, ej. 265 = Primera División Chile
-    """
     params = {"date": date}
     if league_id:
         params["league"] = league_id
@@ -33,64 +28,56 @@ def get_fixtures_by_date(date: str, league_id: int = None):
     res = requests.get(f"{BASE_URL}/fixtures", headers=HEADERS, params=params)
     return res.json().get("response", [])
 
+
 def get_fixture_events(fixture_id: int):
-    """Retorna los eventos de un partido (goles, tarjetas, sustituciones)."""
     res = requests.get(f"{BASE_URL}/fixtures/events?fixture={fixture_id}", headers=HEADERS)
     return res.json().get("response", [])
 
+
 def get_fixture_stats(fixture_id: int):
-    """Retorna estadísticas de un partido (posesión, tiros, etc.)."""
     res = requests.get(f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}", headers=HEADERS)
     return res.json().get("response", [])
 
+
 def get_lineups(fixture_id: int):
-    """Retorna alineaciones de ambos equipos."""
     res = requests.get(f"{BASE_URL}/fixtures/lineups?fixture={fixture_id}", headers=HEADERS)
     return res.json().get("response", [])
 
-import requests
 
-API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
-BASE_HEADERS = {"x-rapidapi-key": API_KEY, "x-rapidapi-host": "v1.basketball.api-sports.io"}
+# ── Basketball ────────────────────────────────────────────────────────────────
+_BB_HOST = "v1.basketball.api-sports.io"
+_BB_HEADERS = {**BASE_HEADERS, "x-rapidapi-host": _BB_HOST}
 
 
-# ── Basketball (api-sports.io) ────────────────────────────────────────────────
 def get_live_basketball():
     try:
-        r = requests.get(
-            "https://v1.basketball.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.basketball.api-sports.io"},
-            params={"live": "all"}, timeout=10
-        )
+        r = requests.get(f"https://{_BB_HOST}/games", headers=_BB_HEADERS,
+                         params={"live": "all"}, timeout=10)
         return _normalize_basketball(r.json().get("response", []))
     except:
         return []
+
 
 def get_basketball_by_date(date_str, league_id=None):
     try:
         params = {"date": date_str}
         if league_id:
             params["league"] = league_id
-        r = requests.get(
-            "https://v1.basketball.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.basketball.api-sports.io"},
-            params=params, timeout=10
-        )
+        r = requests.get(f"https://{_BB_HOST}/games", headers=_BB_HEADERS,
+                         params=params, timeout=10)
         return _normalize_basketball(r.json().get("response", []))
     except:
         return []
 
+
 def _normalize_basketball(games):
-    """Normaliza respuesta de basketball al mismo formato que football."""
     normalized = []
     for g in games:
         normalized.append({
             "fixture": {
                 "id": g.get("id"),
-                "status": {
-                    "long": g.get("status", {}).get("long", ""),
-                    "elapsed": g.get("status", {}).get("timer"),
-                }
+                "status": {"long": g.get("status", {}).get("long", ""),
+                           "elapsed": g.get("status", {}).get("timer")},
             },
             "league": {"id": g.get("league", {}).get("id"), "name": g.get("league", {}).get("name")},
             "teams": {
@@ -105,31 +92,31 @@ def _normalize_basketball(games):
     return normalized
 
 
-# ── Baseball (api-sports.io) ──────────────────────────────────────────────────
+# ── Baseball ──────────────────────────────────────────────────────────────────
+_BSB_HOST = "v1.baseball.api-sports.io"
+_BSB_HEADERS = {**BASE_HEADERS, "x-rapidapi-host": _BSB_HOST}
+
+
 def get_live_baseball():
     try:
-        r = requests.get(
-            "https://v1.baseball.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.baseball.api-sports.io"},
-            params={"live": "all"}, timeout=10
-        )
+        r = requests.get(f"https://{_BSB_HOST}/games", headers=_BSB_HEADERS,
+                         params={"live": "all"}, timeout=10)
         return _normalize_baseball(r.json().get("response", []))
     except:
         return []
+
 
 def get_baseball_by_date(date_str, league_id=None):
     try:
         params = {"date": date_str}
         if league_id:
             params["league"] = league_id
-        r = requests.get(
-            "https://v1.baseball.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.baseball.api-sports.io"},
-            params=params, timeout=10
-        )
+        r = requests.get(f"https://{_BSB_HOST}/games", headers=_BSB_HEADERS,
+                         params=params, timeout=10)
         return _normalize_baseball(r.json().get("response", []))
     except:
         return []
+
 
 def _normalize_baseball(games):
     normalized = []
@@ -137,10 +124,8 @@ def _normalize_baseball(games):
         normalized.append({
             "fixture": {
                 "id": g.get("id"),
-                "status": {
-                    "long": g.get("status", {}).get("long", ""),
-                    "elapsed": g.get("status", {}).get("inning"),
-                }
+                "status": {"long": g.get("status", {}).get("long", ""),
+                           "elapsed": g.get("status", {}).get("inning")},
             },
             "league": {"id": g.get("league", {}).get("id"), "name": g.get("league", {}).get("name")},
             "teams": {
@@ -155,31 +140,41 @@ def _normalize_baseball(games):
     return normalized
 
 
-# ── American Football (api-sports.io) ────────────────────────────────────────
+def get_baseball_lineups(fixture_id: int):
+    """Obtiene alineación de béisbol (pitchers + batters por equipo)."""
+    try:
+        r = requests.get(f"https://{_BSB_HOST}/games/lineups", headers=_BSB_HEADERS,
+                         params={"game": fixture_id}, timeout=10)
+        return r.json().get("response", [])
+    except:
+        return []
+
+
+# ── American Football ─────────────────────────────────────────────────────────
+_AF_HOST = "v1.american-football.api-sports.io"
+_AF_HEADERS = {**BASE_HEADERS, "x-rapidapi-host": _AF_HOST}
+
+
 def get_live_americanfootball():
     try:
-        r = requests.get(
-            "https://v1.american-football.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.american-football.api-sports.io"},
-            params={"live": "all"}, timeout=10
-        )
+        r = requests.get(f"https://{_AF_HOST}/games", headers=_AF_HEADERS,
+                         params={"live": "all"}, timeout=10)
         return _normalize_americanfootball(r.json().get("response", []))
     except:
         return []
+
 
 def get_americanfootball_by_date(date_str, league_id=None):
     try:
         params = {"date": date_str}
         if league_id:
             params["league"] = league_id
-        r = requests.get(
-            "https://v1.american-football.api-sports.io/games",
-            headers={**BASE_HEADERS, "x-rapidapi-host": "v1.american-football.api-sports.io"},
-            params=params, timeout=10
-        )
+        r = requests.get(f"https://{_AF_HOST}/games", headers=_AF_HEADERS,
+                         params=params, timeout=10)
         return _normalize_americanfootball(r.json().get("response", []))
     except:
         return []
+
 
 def _normalize_americanfootball(games):
     normalized = []
@@ -187,10 +182,8 @@ def _normalize_americanfootball(games):
         normalized.append({
             "fixture": {
                 "id": g.get("game", {}).get("id"),
-                "status": {
-                    "long": g.get("game", {}).get("status", {}).get("long", ""),
-                    "elapsed": g.get("game", {}).get("status", {}).get("quarter"),
-                }
+                "status": {"long": g.get("game", {}).get("status", {}).get("long", ""),
+                           "elapsed": g.get("game", {}).get("status", {}).get("quarter")},
             },
             "league": {"id": g.get("league", {}).get("id"), "name": g.get("league", {}).get("name")},
             "teams": {
@@ -203,16 +196,3 @@ def _normalize_americanfootball(games):
             },
         })
     return normalized
-
-def get_baseball_lineups(fixture_id):
-    """Obtiene lineup de béisbol (batters + pitcher)"""
-    try:
-        r = requests.get(
-            "https://v1.baseball.api-sports.io/games/lineups",
-            headers={**HEADERS, "x-rapidapi-host": "v1.baseball.api-sports.io"},
-            params={"game": fixture_id},
-            timeout=10
-        )
-        return r.json().get("response", [])
-    except:
-        return []

@@ -7,7 +7,7 @@ from api import (
     get_live_basketball, get_basketball_by_date,
     get_live_baseball, get_baseball_by_date,
     get_live_americanfootball, get_americanfootball_by_date,
-    get_baseball_lineups,   # ← agregar esto
+    get_baseball_lineups,
 )
 from supabase import create_client
 import time
@@ -33,6 +33,7 @@ def init_supabase():
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
 
+
 supabase = init_supabase()
 
 
@@ -50,7 +51,6 @@ deporte = DEPORTES[selected_deporte_label]
 
 mode = st.sidebar.radio("Modo", ["🔴 En vivo ahora", "📅 Por fecha"])
 
-# Ligas por deporte
 LIGAS = {
     "football": {
         "Primera División Chile": 265,
@@ -85,7 +85,7 @@ selected_liga = st.sidebar.selectbox("Liga", list(ligas_deporte.keys()))
 league_id = ligas_deporte[selected_liga]
 
 
-# ── Obtener fixtures según deporte ───────────────────────────────────────────
+# ── Obtener fixtures ──────────────────────────────────────────────────────────
 def get_fixtures(deporte, mode, selected_date=None, league_id=None):
     if deporte == "football":
         if mode == "🔴 En vivo ahora":
@@ -113,7 +113,6 @@ else:
     selected_date = st.sidebar.date_input("Fecha", value=date.today())
     fixtures = get_fixtures(deporte, mode, selected_date, league_id)
 
-# Filtrar por liga en modo en vivo
 if league_id and mode == "🔴 En vivo ahora":
     fixtures = [f for f in fixtures if f.get("league", {}).get("id") == league_id]
 
@@ -125,11 +124,11 @@ if not fixtures:
 # ── Labels de partidos ────────────────────────────────────────────────────────
 partido_labels = []
 for f in fixtures:
-    home = f["teams"]["home"]["name"]
-    away = f["teams"]["away"]["name"]
+    home    = f["teams"]["home"]["name"]
+    away    = f["teams"]["away"]["name"]
     score_h = f["goals"]["home"] if f["goals"]["home"] is not None else "-"
     score_a = f["goals"]["away"] if f["goals"]["away"] is not None else "-"
-    minuto = f["fixture"]["status"]["elapsed"]
+    minuto  = f["fixture"]["status"]["elapsed"]
     min_str = f" ({minuto}')" if minuto else ""
     partido_labels.append(f"{home} {score_h} - {score_a} {away}{min_str}")
 
@@ -137,11 +136,11 @@ selected_idx = st.sidebar.selectbox(
     "Partido", range(len(partido_labels)),
     format_func=lambda i: partido_labels[i]
 )
-fixture = fixtures[selected_idx]
+fixture    = fixtures[selected_idx]
 fixture_id = fixture["fixture"]["id"]
 
-home   = fixture["teams"]["home"]["name"]
-away   = fixture["teams"]["away"]["name"]
+home    = fixture["teams"]["home"]["name"]
+away    = fixture["teams"]["away"]["name"]
 score_h = fixture["goals"]["home"] if fixture["goals"]["home"] is not None else 0
 score_a = fixture["goals"]["away"] if fixture["goals"]["away"] is not None else 0
 status  = fixture["fixture"]["status"]["long"]
@@ -171,10 +170,10 @@ with tab1:
     if events:
         data = {
             "Min":     [clean(e.get("time", {}).get("elapsed")) + "'" for e in events],
-            "Tipo":    [clean(e.get("type")) for e in events],
-            "Detalle": [clean(e.get("detail")) for e in events],
-            "Jugador": [clean(e.get("player", {}).get("name")) for e in events],
-            "Equipo":  [clean(e.get("team", {}).get("name")) for e in events],
+            "Tipo":    [clean(e.get("type"))                          for e in events],
+            "Detalle": [clean(e.get("detail"))                        for e in events],
+            "Jugador": [clean(e.get("player", {}).get("name"))        for e in events],
+            "Equipo":  [clean(e.get("team", {}).get("name"))          for e in events],
         }
         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
     else:
@@ -189,7 +188,7 @@ with tab2:
         away_stats = {s["type"]: s["value"] for s in stats[1]["statistics"]}
         keys = list(home_stats.keys())
         data = {
-            "Estadística": [clean(k) for k in keys],
+            "Estadística": [clean(k)                 for k in keys],
             home:          [clean(home_stats.get(k)) for k in keys],
             away:          [clean(away_stats.get(k)) for k in keys],
         }
@@ -199,8 +198,9 @@ with tab2:
 
 
 # ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
-# ── Tab 3: Alineaciones ───────────────────────────────────────────────────────
 with tab3:
+
+    # ── Fútbol ──────────────────────────────────────────────────────────────
     if deporte == "football":
         lineups = get_lineups(fixture_id)
         if lineups:
@@ -209,16 +209,38 @@ with tab3:
                 col = col_h if i == 0 else col_a
                 with col:
                     st.subheader(team_lineup["team"]["name"])
-                    st.caption(f"Formación: {team_lineup['formation']}")
-                    data = {
-                        "#":       [clean(p["player"]["number"]) for p in team_lineup["startXI"]],
-                        "Jugador": [clean(p["player"]["name"]) for p in team_lineup["startXI"]],
-                        "Pos":     [clean(p["player"]["pos"]) for p in team_lineup["startXI"]],
-                    }
-                    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
-        else:
-            st.info("Alineaciones no disponibles.")
+                    st.caption(f"⚙️ Formación: {team_lineup.get('formation', '-')}")
 
+                    # Once titular
+                    start_xi = team_lineup.get("startXI", [])
+                    if start_xi:
+                        st.markdown("**🟢 Once titular**")
+                        data = {
+                            "#":       [clean(p["player"].get("number")) for p in start_xi],
+                            "Jugador": [clean(p["player"].get("name"))   for p in start_xi],
+                            "Pos":     [clean(p["player"].get("pos"))    for p in start_xi],
+                        }
+                        st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+
+                    # Suplentes en expander
+                    substitutes = team_lineup.get("substitutes", [])
+                    if substitutes:
+                        with st.expander("🔄 Suplentes"):
+                            data_s = {
+                                "#":       [clean(p["player"].get("number")) for p in substitutes],
+                                "Jugador": [clean(p["player"].get("name"))   for p in substitutes],
+                                "Pos":     [clean(p["player"].get("pos"))    for p in substitutes],
+                            }
+                            st.dataframe(pd.DataFrame(data_s), use_container_width=True, hide_index=True)
+
+                    # DT
+                    coach = team_lineup.get("coach", {})
+                    if coach.get("name"):
+                        st.caption(f"🧑‍💼 DT: {coach['name']}")
+        else:
+            st.info("Alineaciones no disponibles para este partido.")
+
+    # ── Béisbol ──────────────────────────────────────────────────────────────
     elif deporte == "baseball":
         lineups = get_baseball_lineups(fixture_id)
         if lineups:
@@ -226,28 +248,43 @@ with tab3:
             for i, team_data in enumerate(lineups[:2]):
                 col = col_h if i == 0 else col_a
                 with col:
-                    st.subheader(team_data.get("team", {}).get("name", ""))
-                    # Pitchers
+                    team_name = team_data.get("team", {}).get("name", f"Equipo {i+1}")
+                    st.subheader(team_name)
+
+                    # Pitcher abridor
                     pitchers = team_data.get("pitchers", [])
                     if pitchers:
-                        st.caption("⚾ Pitcher")
-                        data_p = {"Jugador": [clean(p.get("name")) for p in pitchers]}
-                        st.dataframe(pd.DataFrame(data_p), use_container_width=True, hide_index=True)
-                    # Batters
+                        starter = pitchers[0]
+                        st.markdown("**⚾ Pitcher abridor**")
+                        st.markdown(f"- {clean(starter.get('name'))}  #{clean(starter.get('number'))}")
+
+                    # Bullpen en expander
+                    if len(pitchers) > 1:
+                        with st.expander("🔁 Bullpen"):
+                            for p in pitchers[1:]:
+                                st.markdown(f"- {clean(p.get('name'))}  #{clean(p.get('number'))}")
+
+                    # Orden al bate
                     batters = team_data.get("batters", [])
                     if batters:
-                        st.caption("🏏 Batters")
+                        st.markdown("**🏏 Orden al bate**")
                         data_b = {
-                            "#":       [clean(b.get("order")) for b in batters],
-                            "Jugador": [clean(b.get("name")) for b in batters],
-                            "Pos":     [clean(b.get("pos")) for b in batters],
+                            "Turno":   [clean(b.get("order"))  for b in batters],
+                            "Jugador": [clean(b.get("name"))   for b in batters],
+                            "Pos":     [clean(b.get("pos"))    for b in batters],
+                            "#":       [clean(b.get("number")) for b in batters],
                         }
                         st.dataframe(pd.DataFrame(data_b), use_container_width=True, hide_index=True)
-        else:
-            st.info("Alineaciones no disponibles para este partido.")
 
+                    if not pitchers and not batters:
+                        st.info("Sin datos de alineación.")
+        else:
+            st.info("Alineaciones no disponibles para este partido de béisbol.")
+
+    # ── Otros deportes ────────────────────────────────────────────────────────
     else:
         st.info(f"Alineaciones no disponibles para {selected_deporte_label}.")
+
 
 # ── Tab 4: Predictor multijugador ─────────────────────────────────────────────
 with tab4:
@@ -256,17 +293,17 @@ with tab4:
     usuario = st.text_input("Tu nombre o apodo", placeholder="Ej: Antonio")
 
     with st.form("prediccion"):
-        pred_gol = st.radio("Próximo en anotar:", [home, away, "Nadie"])
+        pred_gol       = st.radio("Próximo en anotar:", [home, away, "Nadie"])
         pred_resultado = st.selectbox("Resultado final:", [f"Gana {home}", f"Gana {away}", "Empate"])
-        pred_goles = st.slider("Total de puntos/goles:", 0, 150 if deporte == "basketball" else 30, 2)
-        submitted = st.form_submit_button("✅ Enviar predicción")
+        pred_goles     = st.slider("Total de puntos/goles:", 0, 150 if deporte == "basketball" else 30, 2)
+        submitted      = st.form_submit_button("✅ Enviar predicción")
 
     if submitted and usuario:
         supabase.table("predicciones").insert({
-            "usuario":    usuario,
-            "fixture_id": fixture_id,
-            "deporte":    deporte,
-            "resultado":  pred_resultado,
+            "usuario":     usuario,
+            "fixture_id":  fixture_id,
+            "deporte":     deporte,
+            "resultado":   pred_resultado,
             "proximo_gol": pred_gol,
             "total_goles": pred_goles,
         }).execute()
@@ -291,7 +328,8 @@ if mode == "🔴 En vivo ahora":
     time.sleep(30)
     st.rerun()
 
-# ── Alerta de gol/punto nuevo ────────────────────────────────────────────────
+
+# ── Alerta de gol/punto nuevo ─────────────────────────────────────────────────
 if "ultimo_marcador" not in st.session_state:
     st.session_state.ultimo_marcador = (score_h, score_a)
 
