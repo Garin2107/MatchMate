@@ -115,7 +115,18 @@ selected_idx = st.sidebar.selectbox(
     "Partido", range(len(partido_labels)),
     format_func=lambda i: partido_labels[i]
 )
+
+if selected_idx is None or selected_idx >= len(fixtures):
+    st.warning("Selecciona un partido válido.")
+    st.stop()
+
+if not fixtures:
+    st.warning("No hay partidos disponibles para esta fecha y liga.")
+    st.sidebar.empty()   # ← limpia el sidebar
+    st.stop()
+
 fixture    = fixtures[selected_idx]
+
 fixture_id = fixture["fixture"]["id"]
 
 home    = fixture["teams"]["home"]["name"]
